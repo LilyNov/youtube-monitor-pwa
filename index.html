@@ -5,6 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="manifest" href="manifest.json" />
     <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.4.5.min.js"></script>
+    <style>
+      #app {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      #chat {
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid #ccc;
+        margin-bottom: 20px;
+      }
+      .sent {
+        background: #4a90e2;
+        color: white;
+        padding: 8px;
+        margin: 5px;
+        border-radius: 4px;
+        text-align: right;
+      }
+      .received {
+        background: #f0f0f0;
+        padding: 8px;
+        margin: 5px;
+        border-radius: 4px;
+      }
+      #controls {
+        margin-top: 20px;
+      }
+      #timeLimit {
+        padding: 8px;
+        margin-right: 10px;
+        width: 100px;
+      }
+      button {
+        padding: 8px 15px;
+        background: #4a90e2;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      #chat-input {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      #messageInput {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+    </style>
   </head>
   <body>
     <div id="app">
@@ -25,17 +79,29 @@
         userId: "PARENT_USER_ID", // Use a consistent parent ID
       });
 
+      pubnub.subscribe({
+        channels: ["parent-child-channel"],
+      });
+
       // Add message handler
       pubnub.addListener({
         message: function (event) {
           if (event.message.type === "CHAT") {
-            // Display message in chat
+            // Your existing chat code
             const chatDiv = document.getElementById("chat");
             const messageDiv = document.createElement("div");
             messageDiv.textContent = event.message.text;
             messageDiv.className =
               event.publisher === "PARENT_USER_ID" ? "sent" : "received";
             chatDiv.appendChild(messageDiv);
+          } else if (
+            event.message.type === "NOTIFICATION" &&
+            event.message.to === "PARENT_USER_ID"
+          ) {
+            // Show notification
+            new Notification("YouTube Monitor", {
+              body: event.message.text,
+            });
           }
         },
       });
@@ -64,16 +130,52 @@
         }
       }
 
-      // Add some basic styles
-      const style = document.createElement("style");
-      style.textContent = `
-  #app { max-width: 600px; margin: 0 auto; padding: 20px; }
-  #chat { height: 400px; overflow-y: auto; border: 1px solid #ccc; margin-bottom: 20px; }
-  .sent { background: #4a90e2; color: white; padding: 8px; margin: 5px; border-radius: 4px; text-align: right; }
-  .received { background: #f0f0f0; padding: 8px; margin: 5px; border-radius: 4px; }
-  #controls { margin-top: 20px; }
-`;
-      document.head.appendChild(style);
+      // After PubNub initialization
+      async function setupNotifications() {
+        try {
+          const permission = await Notification.requestPermission();
+          if (permission === "granted") {
+            alert("Notifications enabled!");
+          }
+        } catch (err) {
+          alert("Error enabling notifications: " + err);
+        }
+      }
+
+      // Add button to UI
+      const notifyButton = document.createElement("button");
+      notifyButton.innerText = "Enable Notifications";
+      notifyButton.onclick = setupNotifications;
+      document.body.appendChild(notifyButton);
+
+      function updateTimeLimit() {
+        const minutes = document.getElementById("timeLimit").value;
+        if (minutes > 0) {
+          pubnub.publish({
+            channel: "parent-child-channel",
+            message: {
+              type: "TIME_UPDATE",
+              timeLimit: minutes * 60 * 1000, // Convert minutes to milliseconds
+              from: "PARENT_USER_ID",
+              to: "CHILD_USER_ID",
+            },
+          });
+          alert(`Time limit set to ${minutes} minutes`);
+        } else {
+          alert("Please enter a valid time limit");
+        }
+      }
+
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .register("service-worker.js")
+          .then(function (registration) {
+            console.log("Service Worker registered");
+          })
+          .catch(function (error) {
+            console.log("Service Worker registration failed:", error);
+          });
+      }
     </script>
   </body>
 </html>

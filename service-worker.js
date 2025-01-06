@@ -9,14 +9,3 @@ self.addEventListener("push", function (event) {
     self.registration.showNotification("YouTube Monitor", options)
   );
 });
-
-// For notifications, add this to your content script:
-function notifyParent(message) {
-  pubnub.publish({
-    channel: "parent-child-channel",
-    message: {
-      type: "NOTIFICATION",
-      text: message,
-    },
-  });
-}

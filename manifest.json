@@ -1,0 +1,15 @@
+{
+  "name": "Parent YouTube Monitor",
+  "short_name": "YT Monitor",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4a90e2",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Parent Monitor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="manifest.json" />
+    <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.4.5.min.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <div id="chat"></div>
+      <div id="controls">
+        <input
+          type="number"
+          id="timeLimit"
+          placeholder="Time limit (minutes)"
+        />
+        <button onclick="updateTimeLimit()">Set Time</button>
+      </div>
+    </div>
+    <script>
+      const pubnub = new PubNub({
+        publishKey: "YOUR_PUBLISH_KEY",
+        subscribeKey: "YOUR_SUBSCRIBE_KEY",
+        userId: "PARENT_ID",
+      });
+
+      pubnub.subscribe({
+        channels: ["parent-child-channel"],
+      });
+
+      function updateTimeLimit() {
+        const minutes = document.getElementById("timeLimit").value;
+        pubnub.publish({
+          channel: "parent-child-channel",
+          message: {
+            type: "TIME_UPDATE",
+            timeLimit: minutes * 60 * 1000,
+          },
+        });
+      }
+
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("service-worker.js");
+      }
+    </script>
+  </body>
+</html>

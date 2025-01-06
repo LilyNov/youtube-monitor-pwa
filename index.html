@@ -20,29 +20,60 @@
     </div>
     <script>
       const pubnub = new PubNub({
-        publishKey: "YOUR_PUBLISH_KEY",
-        subscribeKey: "YOUR_SUBSCRIBE_KEY",
-        userId: "PARENT_ID",
+        publishKey: "pub-c-cd477f33-cc4d-48e6-821f-4be534286c45",
+        subscribeKey: "sub-c-7bdd0761-ffe4-48f3-b891-c487cdd60910",
+        userId: "PARENT_USER_ID", // Use a consistent parent ID
       });
 
-      pubnub.subscribe({
-        channels: ["parent-child-channel"],
+      // Add message handler
+      pubnub.addListener({
+        message: function (event) {
+          if (event.message.type === "CHAT") {
+            // Display message in chat
+            const chatDiv = document.getElementById("chat");
+            const messageDiv = document.createElement("div");
+            messageDiv.textContent = event.message.text;
+            messageDiv.className =
+              event.publisher === "PARENT_USER_ID" ? "sent" : "received";
+            chatDiv.appendChild(messageDiv);
+          }
+        },
       });
 
-      function updateTimeLimit() {
-        const minutes = document.getElementById("timeLimit").value;
-        pubnub.publish({
-          channel: "parent-child-channel",
-          message: {
-            type: "TIME_UPDATE",
-            timeLimit: minutes * 60 * 1000,
-          },
-        });
+      // Add chat input UI
+      document.getElementById("app").innerHTML += `
+  <div id="chat-input">
+    <input type="text" id="messageInput" placeholder="Type a message...">
+    <button onclick="sendMessage()">Send</button>
+  </div>
+`;
+
+      function sendMessage() {
+        const input = document.getElementById("messageInput");
+        const message = input.value.trim();
+        if (message) {
+          pubnub.publish({
+            channel: "parent-child-channel",
+            message: {
+              type: "CHAT",
+              text: message,
+              timestamp: new Date(),
+            },
+          });
+          input.value = "";
+        }
       }
 
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("service-worker.js");
-      }
+      // Add some basic styles
+      const style = document.createElement("style");
+      style.textContent = `
+  #app { max-width: 600px; margin: 0 auto; padding: 20px; }
+  #chat { height: 400px; overflow-y: auto; border: 1px solid #ccc; margin-bottom: 20px; }
+  .sent { background: #4a90e2; color: white; padding: 8px; margin: 5px; border-radius: 4px; text-align: right; }
+  .received { background: #f0f0f0; padding: 8px; margin: 5px; border-radius: 4px; }
+  #controls { margin-top: 20px; }
+`;
+      document.head.appendChild(style);
     </script>
   </body>
 </html>

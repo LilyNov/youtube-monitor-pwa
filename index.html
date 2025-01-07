@@ -6,39 +6,64 @@
     <link rel="manifest" href="manifest.json" />
     <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.4.5.min.js"></script>
     <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      }
+
       #app {
         max-width: 600px;
         margin: 0 auto;
         padding: 20px;
+        box-sizing: border-box;
       }
+
       #chat {
         height: 400px;
         overflow-y: auto;
         border: 1px solid #ccc;
         margin-bottom: 20px;
+        border-radius: 8px;
+        background: white;
+        padding: 10px;
       }
+
+      .message {
+        padding: 8px;
+        margin: 5px;
+        border-radius: 4px;
+        max-width: 80%;
+        word-wrap: break-word;
+      }
+
       .sent {
         background: #4a90e2;
         color: white;
-        padding: 8px;
-        margin: 5px;
-        border-radius: 4px;
+        margin-left: 20%;
         text-align: right;
       }
+
       .received {
         background: #f0f0f0;
-        padding: 8px;
-        margin: 5px;
-        border-radius: 4px;
+        color: black;
       }
+
       #controls {
         margin-top: 20px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
       }
+
       #timeLimit {
         padding: 8px;
-        margin-right: 10px;
-        width: 100px;
+        width: 120px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
       }
+
       button {
         padding: 8px 15px;
         background: #4a90e2;
@@ -46,23 +71,65 @@
         border: none;
         border-radius: 4px;
         cursor: pointer;
+        transition: background 0.2s;
       }
+
+      button:hover {
+        background: #357abd;
+      }
+
       #chat-input {
         display: flex;
         gap: 10px;
         margin-top: 10px;
       }
+
       #messageInput {
         flex: 1;
         padding: 8px;
         border: 1px solid #ccc;
         border-radius: 4px;
       }
+
+      .timestamp {
+        font-size: 0.8em;
+        opacity: 0.7;
+        margin-top: 4px;
+      }
+
+      .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px;
+        background: #4a90e2;
+        color: white;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        animation: slideIn 0.3s ease;
+        z-index: 1000;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateY(-100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
     </style>
   </head>
   <body>
     <div id="app">
+      <h1>Parent Monitor</h1>
       <div id="chat"></div>
+      <div id="chat-input">
+        <input type="text" id="messageInput" placeholder="Type a message..." />
+        <button onclick="sendMessage()">Send</button>
+      </div>
       <div id="controls">
         <input
           type="number"
@@ -70,111 +137,196 @@
           placeholder="Time limit (minutes)"
         />
         <button onclick="updateTimeLimit()">Set Time</button>
+        <button onclick="setupNotifications()" id="notifyButton">
+          Enable Notifications
+        </button>
       </div>
     </div>
     <script>
+      // Initialize PubNub
       const pubnub = new PubNub({
         publishKey: "pub-c-cd477f33-cc4d-48e6-821f-4be534286c45",
         subscribeKey: "sub-c-7bdd0761-ffe4-48f3-b891-c487cdd60910",
-        userId: "PARENT_USER_ID", // Use a consistent parent ID
+        userId: "PARENT_USER_ID",
       });
 
+      // Subscribe to channel
       pubnub.subscribe({
         channels: ["parent-child-channel"],
       });
 
-      // Add message handler
+      // Show notification function
+      function showNotification(title, message, duration = 3000) {
+        const notification = document.createElement("div");
+        notification.className = "notification";
+        notification.textContent = `${title}: ${message}`;
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+          notification.style.animation = "slideOut 0.3s ease";
+          setTimeout(() => notification.remove(), 300);
+        }, duration);
+      }
+
+      // Message display function
+      function displayMessage(message, isSent, timestamp) {
+        const chatDiv = document.getElementById("chat");
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${isSent ? "sent" : "received"}`;
+
+        const messageText = document.createElement("div");
+        messageText.textContent = message;
+        messageDiv.appendChild(messageText);
+
+        const timeDiv = document.createElement("div");
+        timeDiv.className = "timestamp";
+        timeDiv.textContent = new Date(timestamp).toLocaleTimeString();
+        messageDiv.appendChild(timeDiv);
+
+        chatDiv.appendChild(messageDiv);
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+      }
+
+      // Message handler
       pubnub.addListener({
         message: function (event) {
           if (event.message.type === "CHAT") {
-            // Your existing chat code
-            const chatDiv = document.getElementById("chat");
-            const messageDiv = document.createElement("div");
-            messageDiv.textContent = event.message.text;
-            messageDiv.className =
-              event.publisher === "PARENT_USER_ID" ? "sent" : "received";
-            chatDiv.appendChild(messageDiv);
+            displayMessage(
+              event.message.text,
+              event.publisher === "PARENT_USER_ID",
+              event.message.timestamp
+            );
+
+            // Show notification if message is from child
+            if (event.publisher !== "PARENT_USER_ID") {
+              showNotification("New Message", event.message.text);
+              if (Notification.permission === "granted") {
+                new Notification("Message from Child", {
+                  body: event.message.text,
+                  icon: "/icon-192.png",
+                });
+              }
+            }
           } else if (
             event.message.type === "NOTIFICATION" &&
             event.message.to === "PARENT_USER_ID"
           ) {
-            // Show notification
-            new Notification("YouTube Monitor", {
-              body: event.message.text,
-            });
+            showNotification("YouTube Monitor", event.message.text);
+            if (Notification.permission === "granted") {
+              new Notification("YouTube Monitor", {
+                body: event.message.text,
+                icon: "/icon-192.png",
+              });
+            }
           }
         },
       });
 
-      // Add chat input UI
-      document.getElementById("app").innerHTML += `
-  <div id="chat-input">
-    <input type="text" id="messageInput" placeholder="Type a message...">
-    <button onclick="sendMessage()">Send</button>
-  </div>
-`;
-
+      // Send message function
       function sendMessage() {
         const input = document.getElementById("messageInput");
         const message = input.value.trim();
         if (message) {
-          pubnub.publish({
-            channel: "parent-child-channel",
-            message: {
-              type: "CHAT",
-              text: message,
-              timestamp: new Date(),
-            },
-          });
-          input.value = "";
+          pubnub
+            .publish({
+              channel: "parent-child-channel",
+              message: {
+                type: "CHAT",
+                text: message,
+                timestamp: new Date(),
+              },
+            })
+            .then(() => {
+              input.value = "";
+            })
+            .catch((error) => {
+              console.error("Failed to send message:", error);
+              showNotification(
+                "Error",
+                "Failed to send message. Please try again."
+              );
+            });
         }
       }
 
-      // After PubNub initialization
+      // Update time limit function
+      function updateTimeLimit() {
+        const minutes = document.getElementById("timeLimit").value;
+        if (minutes > 0) {
+          pubnub
+            .publish({
+              channel: "parent-child-channel",
+              message: {
+                type: "TIME_UPDATE",
+                timeLimit: minutes * 60 * 1000,
+                from: "PARENT_USER_ID",
+                to: "CHILD_USER_ID",
+              },
+            })
+            .then(() => {
+              showNotification(
+                "Success",
+                `Time limit set to ${minutes} minutes`
+              );
+            })
+            .catch((error) => {
+              console.error("Failed to update time limit:", error);
+              showNotification(
+                "Error",
+                "Failed to update time limit. Please try again."
+              );
+            });
+        } else {
+          showNotification("Error", "Please enter a valid time limit");
+        }
+      }
+
+      // Notification setup function
       async function setupNotifications() {
         try {
           const permission = await Notification.requestPermission();
           if (permission === "granted") {
-            alert("Notifications enabled!");
+            document.getElementById("notifyButton").textContent =
+              "Notifications Enabled";
+            document.getElementById("notifyButton").disabled = true;
+            showNotification("Success", "Notifications enabled successfully");
+          } else {
+            showNotification("Error", "Notification permission denied");
           }
         } catch (err) {
-          alert("Error enabling notifications: " + err);
+          console.error("Error enabling notifications:", err);
+          showNotification("Error", "Failed to enable notifications");
         }
       }
 
-      // Add button to UI
-      const notifyButton = document.createElement("button");
-      notifyButton.innerText = "Enable Notifications";
-      notifyButton.onclick = setupNotifications;
-      document.body.appendChild(notifyButton);
-
-      function updateTimeLimit() {
-        const minutes = document.getElementById("timeLimit").value;
-        if (minutes > 0) {
-          pubnub.publish({
-            channel: "parent-child-channel",
-            message: {
-              type: "TIME_UPDATE",
-              timeLimit: minutes * 60 * 1000, // Convert minutes to milliseconds
-              from: "PARENT_USER_ID",
-              to: "CHILD_USER_ID",
-            },
-          });
-          alert(`Time limit set to ${minutes} minutes`);
-        } else {
-          alert("Please enter a valid time limit");
-        }
-      }
-
+      // Service Worker registration
       if ("serviceWorker" in navigator) {
-        navigator.serviceWorker
-          .register("service-worker.js")
-          .then(function (registration) {
-            console.log("Service Worker registered");
-          })
-          .catch(function (error) {
-            console.log("Service Worker registration failed:", error);
-          });
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("service-worker.js")
+            .then((registration) => {
+              console.log("SW registered:", registration.scope);
+            })
+            .catch((error) => {
+              console.error("SW registration failed:", error);
+            });
+        });
+      }
+
+      // Add enter key handler for message input
+      document
+        .getElementById("messageInput")
+        .addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            sendMessage();
+          }
+        });
+
+      // Initial setup
+      if (Notification.permission === "granted") {
+        document.getElementById("notifyButton").textContent =
+          "Notifications Enabled";
+        document.getElementById("notifyButton").disabled = true;
       }
     </script>
   </body>
